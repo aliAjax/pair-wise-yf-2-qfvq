@@ -15,6 +15,10 @@ export const mockBenches: Bench[] = [
     stayDuration: 'long',
     rating: 5,
     review: '公园里最爱的长椅，夏天梧桐叶茂盛时完全遮阴，偶尔能听到鸟鸣。',
+    sittingHours: [
+      { start: '06:00', end: '09:30' },
+      { start: '16:00', end: '21:00' },
+    ],
     experiences: [
       {
         id: 'exp-001',
@@ -55,6 +59,7 @@ export const mockBenches: Bench[] = [
     stayDuration: 'medium',
     rating: 3,
     review: '视野很好能看到江景，但是夏天太烫，冬天又太凉。',
+    sittingHours: [{ start: '06:00', end: '22:00' }],
     experiences: [
       {
         id: 'exp-004',
@@ -121,6 +126,10 @@ export const mockBenches: Bench[] = [
     stayDuration: 'verylong',
     rating: 4,
     review: '在廊檐下，下雨也不怕，周围很安静，适合看书。',
+    sittingHours: [
+      { start: '08:00', end: '20:00' },
+      { start: '21:00', end: '23:00' },
+    ],
     experiences: [
       {
         id: 'exp-008',
@@ -180,6 +189,10 @@ export const mockBenches: Bench[] = [
     stayDuration: 'long',
     rating: 5,
     review: '学生时代的回忆，两排梧桐树完全遮住阳光，夏天特别凉快。',
+    sittingHours: [
+      { start: '06:00', end: '08:00' },
+      { start: '22:00', end: '06:00' },
+    ],
     experiences: [
       {
         id: 'exp-011',

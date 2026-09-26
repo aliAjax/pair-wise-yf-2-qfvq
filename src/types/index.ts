@@ -13,6 +13,16 @@ export interface BenchExperience {
   rating: number;
 }
 
+/**
+ * 可坐时段。start/end 均为当天的 "HH:MM"。
+ * 当 end <= start 时表示该时段跨午夜（例如 18:00 - 06:00 表示从当天 18:00 到次日 06:00）。
+ * 没有登记任何时段（sittingHours 为空或缺失）时按全天开放处理。
+ */
+export interface SittingPeriod {
+  start: string;
+  end: string;
+}
+
 export interface Bench {
   id: string;
   name: string;
@@ -28,6 +38,7 @@ export interface Bench {
   rating: number;
   review: string;
   experiences: BenchExperience[];
+  sittingHours?: SittingPeriod[];
   createdAt: string;
   updatedAt: string;
 }

@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useBenchStore } from '@/store/useBenchStore';
 import FilterBar from '@/components/FilterBar/FilterBar';
 import BenchCard from '@/components/BenchCard/BenchCard';
 import { Armchair } from 'lucide-react';
+import { useNow } from '@/hooks/useNow';
+import { getScheduleStatus } from '@/utils/schedule';
 
 export default function ListPage() {
   const { benches, getFilteredBenches, initialize, initialized } = useBenchStore();
+  const now = useNow();
   const filteredBenches = getFilteredBenches();
 
   useEffect(() => {
@@ -13,6 +16,13 @@ export default function ListPage() {
       initialize();
     }
   }, [initialized, initialize]);
+
+  // 当前开放的档案排在前面，关闭的档案紧随其后（两组内部保持原有顺序）
+  const sortedBenches = useMemo(() => {
+    const open = filteredBenches.filter((bench) => getScheduleStatus(bench, now).isOpen);
+    const closed = filteredBenches.filter((bench) => !getScheduleStatus(bench, now).isOpen);
+    return { open, closed, all: [...open, ...closed] };
+  }, [filteredBenches, now]);
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -22,14 +32,17 @@ export default function ListPage() {
         </h2>
         <p className="text-ink-light text-sm">
           记录城市中那些被忽略的休憩角落
+          {filteredBenches.length > 0 && (
+            <span className="ml-2 text-moss-green">当前 {sortedBenches.open.length} 张可坐</span>
+          )}
         </p>
       </div>
 
       <FilterBar />
 
-      {filteredBenches.length > 0 ? (
+      {sortedBenches.all.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredBenches.map((bench, index) => (
+          {sortedBenches.all.map((bench, index) => (
             <BenchCard key={bench.id} bench={bench} index={index} />
           ))}
         </div>

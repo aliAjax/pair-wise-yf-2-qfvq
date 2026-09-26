@@ -14,6 +14,7 @@ import {
   Sunset,
   Moon,
   CloudSun,
+  CalendarClock,
 } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import {
@@ -24,15 +25,24 @@ import {
   STAY_DURATION_LABELS,
   TIME_PERIOD_LABELS,
 } from '@/types';
-import type { TimePeriodType } from '@/types';
+import type { TimePeriodType, SittingPeriod } from '@/types';
 import Rating from '@/components/Rating/Rating';
+import ScheduleStatusBadge from '@/components/ScheduleStatusBadge/ScheduleStatusBadge';
+import { useNow } from '@/hooks/useNow';
 import { calculateComfortScore, getComfortLevel, getComfortColor } from '@/utils/comfort';
+import {
+  getScheduleStatus,
+  formatPeriod,
+  formatRelativeDateTime,
+  normalizePeriods,
+} from '@/utils/schedule';
 
 export default function BenchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getBenchById, deleteBench, initialize, initialized } = useBenchStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const now = useNow();
 
   useEffect(() => {
     if (!initialized) {
@@ -61,6 +71,17 @@ export default function BenchDetail() {
   const comfortScore = calculateComfortScore(bench);
   const comfortLevel = getComfortLevel(comfortScore);
   const comfortColor = getComfortColor(comfortScore);
+
+  const scheduleStatus = getScheduleStatus(bench, now);
+  const sittingPeriods: SittingPeriod[] = normalizePeriods(bench.sittingHours ?? []);
+
+  const nextOpenText = scheduleStatus.isOpen
+    ? scheduleStatus.closesAt
+      ? `${formatRelativeDateTime(scheduleStatus.closesAt, now)} 关闭`
+      : '全天开放'
+    : scheduleStatus.nextOpenAt
+      ? `下一次开放：${formatRelativeDateTime(scheduleStatus.nextOpenAt, now)}`
+      : '全天开放';
 
   const timePeriodIcons: Record<TimePeriodType, typeof Sunrise> = {
     morning: Sunrise,
@@ -106,9 +127,12 @@ export default function BenchDetail() {
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="font-serif text-2xl font-bold text-deep-brown mb-2">
-                    {bench.name}
-                  </h1>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <h1 className="font-serif text-2xl font-bold text-deep-brown">
+                      {bench.name}
+                    </h1>
+                    <ScheduleStatusBadge bench={bench} now={now} size="md" />
+                  </div>
                   <div className="flex items-center gap-1 text-ink-light">
                     <MapPin className="w-4 h-4 flex-shrink-0" />
                     <span>{bench.location}</span>
@@ -215,6 +239,55 @@ export default function BenchDetail() {
 
         <div className="space-y-6">
           <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-2">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarClock className="w-5 h-5 text-moss-green" />
+              <h2 className="font-serif text-lg font-semibold text-deep-brown">
+                可坐时段
+              </h2>
+            </div>
+
+            <div className={`p-4 rounded-lg mb-4 ${
+              scheduleStatus.isOpen ? 'bg-moss-green/10' : 'bg-ink-light/5'
+            }`}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm text-ink-light">当前状态</span>
+                <span className={`text-sm font-medium ${
+                  scheduleStatus.isOpen ? 'text-moss-green' : 'text-ink-light'
+                }`}>
+                  {scheduleStatus.isOpen ? '开放中' : '已关闭'}
+                </span>
+              </div>
+              <p className={`text-sm ${scheduleStatus.isOpen ? 'text-moss-green/80' : 'text-ink-light'}`}>
+                {nextOpenText}
+              </p>
+            </div>
+
+            {sittingPeriods.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs text-ink-light mb-1">每天</p>
+                {sittingPeriods.map((period, index) => (
+                  <div
+                    key={`${period.start}-${period.end}-${index}`}
+                    className="flex items-center justify-between px-3 py-2 bg-warm-cream/60 rounded-lg text-sm"
+                  >
+                    <span className="text-deep-brown font-medium">{formatPeriod(period)}</span>
+                  </div>
+                ))}
+                <p className="text-xs text-ink-light/70 pt-1">
+                  结束时间早于开始时间表示跨午夜开放
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-ink-light">未登记时段，全天开放</p>
+                <p className="text-xs text-ink-light/60 mt-1">
+                  编辑档案时可以登记可坐时段
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-3">
             <h2 className="font-serif text-lg font-semibold text-deep-brown mb-4">
               分时段体验
             </h2>
@@ -259,7 +332,7 @@ export default function BenchDetail() {
             )}
           </div>
 
-          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-3">
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-4">
             <h3 className="font-serif text-sm font-semibold text-deep-brown mb-3">
               档案信息
             </h3>

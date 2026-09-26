@@ -10,6 +10,8 @@ import {
   Sunset,
   Moon,
   CloudSun,
+  CalendarClock,
+  AlertCircle,
 } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import {
@@ -28,9 +30,11 @@ import type {
   StayDurationType,
   TimePeriodType,
   BenchExperience,
+  SittingPeriod,
 } from '@/types';
 import Rating from '@/components/Rating/Rating';
 import { generateId } from '@/utils/comfort';
+import { validatePeriods } from '@/utils/schedule';
 
 export default function AddEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,6 +60,8 @@ export default function AddEditPage() {
   });
 
   const [experiences, setExperiences] = useState<BenchExperience[]>([]);
+  const [sittingHours, setSittingHours] = useState<SittingPeriod[]>([]);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!initialized) {
@@ -80,6 +86,7 @@ export default function AddEditPage() {
         review: existingBench.review,
       });
       setExperiences(existingBench.experiences || []);
+      setSittingHours(existingBench.sittingHours ? existingBench.sittingHours.map((p) => ({ ...p })) : []);
     }
   }, [isEdit, existingBench, initialized]);
 
@@ -113,9 +120,28 @@ export default function AddEditPage() {
     }
   };
 
+  const handleAddPeriod = () => {
+    setSittingHours([...sittingHours, { start: '08:00', end: '18:00' }]);
+    setScheduleError(null);
+  };
+
+  const handleUpdatePeriod = (index: number, field: keyof SittingPeriod, value: string) => {
+    setSittingHours(
+      sittingHours.map((period, i) =>
+        i === index ? { ...period, [field]: value } : period
+      )
+    );
+    setScheduleError(null);
+  };
+
+  const handleDeletePeriod = (index: number) => {
+    setSittingHours(sittingHours.filter((_, i) => i !== index));
+    setScheduleError(null);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       alert('请输入长椅名称');
       return;
@@ -125,8 +151,14 @@ export default function AddEditPage() {
       return;
     }
 
+    const periodError = validatePeriods(sittingHours);
+    if (periodError) {
+      setScheduleError(periodError);
+      return;
+    }
+
     if (isEdit && id) {
-      updateBench(id, formData);
+      updateBench(id, { ...formData, sittingHours });
       experiences.forEach((exp) => {
         const existingExp = existingBench?.experiences.find((e) => e.id === exp.id);
         if (existingExp) {
@@ -138,6 +170,7 @@ export default function AddEditPage() {
     } else {
       addBench({
         ...formData,
+        sittingHours,
       });
     }
 
@@ -230,6 +263,88 @@ export default function AddEditPage() {
           </div>
 
           <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-2">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="w-5 h-5 text-moss-green" />
+                <h2 className="font-serif text-lg font-semibold text-deep-brown">
+                  可坐时段
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddPeriod}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-moss-green hover:bg-moss-green/10 rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                添加时段
+              </button>
+            </div>
+            <p className="text-xs text-ink-light mb-4">
+              登记公园开放等可坐时间，支持一天多段；结束时间早于开始时间表示跨午夜开放。不登记任何时段时按全天开放处理。
+            </p>
+
+            {sittingHours.length > 0 ? (
+              <div className="space-y-3">
+                {sittingHours.map((period, index) => {
+                  const wrapsMidnight =
+                    period.start && period.end && period.end <= period.start;
+                  return (
+                    <div
+                      key={index}
+                      className="flex flex-wrap items-center gap-3 p-3 bg-warm-cream/50 rounded-lg"
+                    >
+                      <span className="text-sm text-ink-light">
+                        第 {index + 1} 段
+                      </span>
+                      <input
+                        type="time"
+                        value={period.start}
+                        onChange={(e) => handleUpdatePeriod(index, 'start', e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-white border border-deep-brown/10 rounded-md text-deep-brown focus:bg-white cursor-pointer"
+                      />
+                      <span className="text-sm text-ink-light">至</span>
+                      <input
+                        type="time"
+                        value={period.end}
+                        onChange={(e) => handleUpdatePeriod(index, 'end', e.target.value)}
+                        className="px-3 py-1.5 text-sm bg-white border border-deep-brown/10 rounded-md text-deep-brown focus:bg-white cursor-pointer"
+                      />
+                      {wrapsMidnight && (
+                        <span className="text-xs text-ochre bg-ochre/10 px-2 py-0.5 rounded">
+                          跨午夜（至次日）
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePeriod(index)}
+                        className="ml-auto p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 bg-warm-cream/40 rounded-lg">
+                <p className="text-sm text-ink-light">
+                  暂未登记时段，该长椅默认全天可坐
+                </p>
+                <p className="text-xs text-ink-light/60 mt-1">
+                  公园闭园等情况下，可以添加可坐时段
+                </p>
+              </div>
+            )}
+
+            {scheduleError && (
+              <div className="mt-3 flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{scheduleError}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-3">
             <h2 className="font-serif text-lg font-semibold text-deep-brown mb-4">
               特征属性
             </h2>
@@ -350,7 +465,7 @@ export default function AddEditPage() {
             </div>
           </div>
 
-          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-3">
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-4">
             <h2 className="font-serif text-lg font-semibold text-deep-brown mb-4">
               个人评价
             </h2>
@@ -382,7 +497,7 @@ export default function AddEditPage() {
             </div>
           </div>
 
-          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-4">
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-serif text-lg font-semibold text-deep-brown">
                 分时段体验
@@ -399,7 +514,7 @@ export default function AddEditPage() {
 
             {experiences.length > 0 ? (
               <div className="space-y-4">
-                {experiences.map((exp, index) => {
+                {experiences.map((exp) => {
                   const TimeIcon = timePeriodIcons[exp.timePeriod];
                   return (
                     <div

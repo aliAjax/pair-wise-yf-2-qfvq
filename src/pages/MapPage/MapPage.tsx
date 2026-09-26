@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, Armchair, Info } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import { calculateComfortScore, getComfortColor } from '@/utils/comfort';
+import { useNow } from '@/hooks/useNow';
+import { getScheduleStatus } from '@/utils/schedule';
 import type { Bench } from '@/types';
 
 export default function MapPage() {
   const { benches, initialize, initialized } = useBenchStore();
   const navigate = useNavigate();
+  const now = useNow();
   const [hoveredBench, setHoveredBench] = useState<Bench | null>(null);
 
   useEffect(() => {
@@ -19,10 +22,10 @@ export default function MapPage() {
   const getPositionStyle = (bench: Bench) => {
     const latRange = { min: 31.22, max: 31.25 };
     const lngRange = { min: 121.46, max: 121.495 };
-    
+
     const normalizedLat = (bench.lat - latRange.min) / (latRange.max - latRange.min);
     const normalizedLng = (bench.lng - lngRange.min) / (lngRange.max - lngRange.min);
-    
+
     return {
       left: `${10 + normalizedLng * 80}%`,
       top: `${85 - normalizedLat * 70}%`,
@@ -36,7 +39,7 @@ export default function MapPage() {
           地图分布
         </h2>
         <p className="text-ink-light text-sm">
-          查看长椅在城市中的分布位置
+          查看长椅在城市中的分布位置，当前开放的标记会高亮显示
         </p>
       </div>
 
@@ -61,7 +64,9 @@ export default function MapPage() {
             const position = getPositionStyle(bench);
             const comfortScore = calculateComfortScore(bench);
             const colorClass = getComfortColor(comfortScore);
-            
+            const { isOpen } = getScheduleStatus(bench, now);
+            const markerColor = isOpen ? colorClass : 'text-ink-light/50';
+
             return (
               <button
                 key={bench.id}
@@ -74,8 +79,15 @@ export default function MapPage() {
                 <div className={`relative ${
                   hoveredBench?.id === bench.id ? 'scale-125 z-10' : 'z-0'
                 } transition-transform duration-200`}>
+                  {isOpen && (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="absolute w-8 h-8 rounded-full bg-moss-green/30 animate-ping" />
+                    </span>
+                  )}
                   <MapPin
-                    className={`w-8 h-8 ${colorClass} drop-shadow-md group-hover:drop-shadow-lg transition-all`}
+                    className={`relative w-8 h-8 ${markerColor} drop-shadow-md group-hover:drop-shadow-lg transition-all ${
+                      isOpen ? '' : 'grayscale'
+                    }`}
                     fill="currentColor"
                   />
                   <div className="absolute top-1 left-1/2 -translate-x-1/2">
@@ -85,15 +97,26 @@ export default function MapPage() {
 
                 {hoveredBench?.id === bench.id && (
                   <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 translate-y-full w-48 paper-texture rounded-lg shadow-paper-hover p-3 z-20 pointer-events-none">
-                    <h4 className="font-serif font-medium text-deep-brown text-sm mb-1 line-clamp-1">
-                      {bench.name}
-                    </h4>
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="font-serif font-medium text-deep-brown text-sm line-clamp-1">
+                        {bench.name}
+                      </h4>
+                      <span
+                        className={`flex-shrink-0 ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                          isOpen
+                            ? 'bg-moss-green/10 text-moss-green'
+                            : 'bg-ink-light/10 text-ink-light'
+                        }`}
+                      >
+                        {isOpen ? '开放中' : '已关闭'}
+                      </span>
+                    </div>
                     <p className="text-xs text-ink-light line-clamp-1 mb-2">
                       {bench.location}
                     </p>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-ink-light">舒适度</span>
-                      <span className={`text-sm font-medium ${colorClass}`}>
+                      <span className={`text-sm font-medium ${isOpen ? colorClass : 'text-ink-light'}`}>
                         {comfortScore}
                       </span>
                     </div>
@@ -114,16 +137,29 @@ export default function MapPage() {
             <h4 className="text-xs font-medium text-deep-brown mb-2">图例</h4>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-moss-green" fill="currentColor" />
-                <span className="text-xs text-ink-light">极佳/优秀</span>
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-moss-green opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-moss-green" />
+                </span>
+                <span className="text-xs text-ink-light">当前开放</span>
               </div>
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-ochre" fill="currentColor" />
-                <span className="text-xs text-ink-light">良好</span>
+                <span className="inline-flex rounded-full h-2.5 w-2.5 bg-ink-light/50" />
+                <span className="text-xs text-ink-light">当前关闭</span>
               </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-ink-light" fill="currentColor" />
-                <span className="text-xs text-ink-light">一般/较差</span>
+              <div className="pt-1 mt-1 border-t border-deep-brown/10 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-moss-green" fill="currentColor" />
+                  <span className="text-xs text-ink-light">极佳/优秀</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-ochre" fill="currentColor" />
+                  <span className="text-xs text-ink-light">良好</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-ink-light" fill="currentColor" />
+                  <span className="text-xs text-ink-light">一般/较差</span>
+                </div>
               </div>
             </div>
           </div>
@@ -132,7 +168,11 @@ export default function MapPage() {
 
       <div className="mt-4 text-center">
         <p className="text-sm text-ink-light">
-          共 <span className="font-medium text-deep-brown">{benches.length}</span> 张长椅
+          共 <span className="font-medium text-deep-brown">{benches.length}</span> 张长椅，其中{' '}
+          <span className="font-medium text-moss-green">
+            {benches.filter((bench) => getScheduleStatus(bench, now).isOpen).length}
+          </span>{' '}
+          张当前可坐
         </p>
       </div>
     </div>

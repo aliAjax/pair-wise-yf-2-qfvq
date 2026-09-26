@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { Trophy, MapPin, Star, Crown, Medal, Award } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import { calculateComfortScore, getComfortLevel, getComfortColor } from '@/utils/comfort';
+import { useNow } from '@/hooks/useNow';
+import { getScheduleStatus } from '@/utils/schedule';
+import ScheduleStatusBadge from '@/components/ScheduleStatusBadge/ScheduleStatusBadge';
 import { MATERIAL_LABELS, SHADE_LABELS } from '@/types';
 import type { Bench } from '@/types';
 
 export default function RankingPage() {
   const { benches, initialize, initialized } = useBenchStore();
   const navigate = useNavigate();
+  const now = useNow();
 
   useEffect(() => {
     if (!initialized) {
@@ -16,9 +20,20 @@ export default function RankingPage() {
     }
   }, [initialized, initialize]);
 
-  const rankedBenches = [...benches]
-    .sort((a, b) => calculateComfortScore(b) - calculateComfortScore(a))
-    .map((bench, index) => ({ bench, rank: index + 1 }));
+  const byComfort = (a: Bench, b: Bench) => calculateComfortScore(b) - calculateComfortScore(a);
+
+  // 关闭中的长椅不能排在前面：先按开放状态分组，组内再按舒适度排序
+  const openBenches = benches
+    .filter((bench) => getScheduleStatus(bench, now).isOpen)
+    .sort(byComfort);
+  const closedBenches = benches
+    .filter((bench) => !getScheduleStatus(bench, now).isOpen)
+    .sort(byComfort);
+
+  const rankedBenches = [
+    ...openBenches.map((bench) => ({ bench, open: true })),
+    ...closedBenches.map((bench) => ({ bench, open: false })),
+  ].map((entry, index) => ({ ...entry, rank: index + 1 }));
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />;
@@ -27,7 +42,8 @@ export default function RankingPage() {
     return <span className="text-base font-bold text-ink-light">{rank}</span>;
   };
 
-  const getRankBg = (rank: number) => {
+  const getRankBg = (rank: number, open: boolean) => {
+    if (!open) return 'bg-white/30 border-deep-brown/5 opacity-70';
     if (rank === 1) return 'bg-gradient-to-r from-yellow-50/80 to-amber-50/80 border-yellow-200/50';
     if (rank === 2) return 'bg-gradient-to-r from-gray-50/80 to-slate-50/80 border-gray-200/50';
     if (rank === 3) return 'bg-gradient-to-r from-orange-50/80 to-amber-50/80 border-orange-200/50';
@@ -41,12 +57,12 @@ export default function RankingPage() {
           舒适度排行
         </h2>
         <p className="text-ink-light text-sm">
-          综合评分最高的长椅
+          当前开放的长椅优先排名，关闭中的长椅展示在列表末尾
         </p>
       </div>
 
       <div className="space-y-3">
-        {rankedBenches.map(({ bench, rank }) => {
+        {rankedBenches.map(({ bench, rank, open }) => {
           const comfortScore = calculateComfortScore(bench);
           const comfortLevel = getComfortLevel(comfortScore);
           const comfortColor = getComfortColor(comfortScore);
@@ -56,12 +72,16 @@ export default function RankingPage() {
               key={bench.id}
               onClick={() => navigate(`/bench/${bench.id}`)}
               className={`paper-texture rounded-xl shadow-paper p-4 border ${
-                getRankBg(rank)
+                getRankBg(rank, open)
               } cursor-pointer card-hover fade-in opacity-0 stagger-${Math.min(rank, 6)}`}
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-warm-beige flex items-center justify-center flex-shrink-0">
-                  {getRankIcon(rank)}
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  open ? 'bg-warm-beige' : 'bg-warm-beige/60'
+                }`}>
+                  {open ? getRankIcon(rank) : (
+                    <span className="text-base font-bold text-ink-light/60">{rank}</span>
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -72,6 +92,7 @@ export default function RankingPage() {
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${comfortColor} bg-white/80`}>
                       {comfortLevel}
                     </span>
+                    <ScheduleStatusBadge bench={bench} now={now} />
                   </div>
 
                   <div className="flex items-center gap-1 text-ink-light text-sm mb-2">
@@ -94,7 +115,7 @@ export default function RankingPage() {
                 </div>
 
                 <div className="text-right flex-shrink-0">
-                  <div className={`text-2xl font-bold font-serif ${comfortColor}`}>
+                  <div className={`text-2xl font-bold font-serif ${open ? comfortColor : 'text-ink-light/60'}`}>
                     {comfortScore}
                   </div>
                   <div className="text-xs text-ink-light">
@@ -107,6 +128,7 @@ export default function RankingPage() {
                 <div className="h-2 bg-warm-beige rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${
+                      !open ? 'bg-ink-light/40' :
                       comfortScore >= 4 ? 'bg-moss-green' :
                       comfortScore >= 3 ? 'bg-ochre' :
                       'bg-ink-light'

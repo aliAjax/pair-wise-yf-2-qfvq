@@ -15,6 +15,9 @@ export const mockBenches: Bench[] = [
     stayDuration: 'long',
     rating: 5,
     review: '公园里最爱的长椅，夏天梧桐叶茂盛时完全遮阴，偶尔能听到鸟鸣。',
+    openHours: [
+      { id: 'win-001', start: '06:00', end: '21:30' },
+    ],
     experiences: [
       {
         id: 'exp-001',
@@ -121,6 +124,9 @@ export const mockBenches: Bench[] = [
     stayDuration: 'verylong',
     rating: 4,
     review: '在廊檐下，下雨也不怕，周围很安静，适合看书。',
+    openHours: [
+      { id: 'win-002', start: '08:00', end: '21:00' },
+    ],
     experiences: [
       {
         id: 'exp-008',

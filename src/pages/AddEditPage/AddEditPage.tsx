@@ -10,6 +10,8 @@ import {
   Sunset,
   Moon,
   CloudSun,
+  Clock,
+  AlertCircle,
 } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import {
@@ -28,9 +30,11 @@ import type {
   StayDurationType,
   TimePeriodType,
   BenchExperience,
+  OpenTimeWindow,
 } from '@/types';
 import Rating from '@/components/Rating/Rating';
 import { generateId } from '@/utils/comfort';
+import { validateWindows } from '@/utils/openHours';
 
 export default function AddEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,6 +60,8 @@ export default function AddEditPage() {
   });
 
   const [experiences, setExperiences] = useState<BenchExperience[]>([]);
+  const [openHours, setOpenHours] = useState<OpenTimeWindow[]>([]);
+  const [openHoursError, setOpenHoursError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!initialized) {
@@ -80,6 +86,7 @@ export default function AddEditPage() {
         review: existingBench.review,
       });
       setExperiences(existingBench.experiences || []);
+      setOpenHours(existingBench.openHours || []);
     }
   }, [isEdit, existingBench, initialized]);
 
@@ -113,9 +120,28 @@ export default function AddEditPage() {
     }
   };
 
+  const handleAddWindow = () => {
+    setOpenHours([...openHours, { id: generateId(), start: '08:00', end: '18:00' }]);
+    setOpenHoursError(null);
+  };
+
+  const handleUpdateWindow = (windowId: string, field: 'start' | 'end', value: string) => {
+    setOpenHours(
+      openHours.map((window) =>
+        window.id === windowId ? { ...window, [field]: value } : window
+      )
+    );
+    setOpenHoursError(null);
+  };
+
+  const handleDeleteWindow = (windowId: string) => {
+    setOpenHours(openHours.filter((window) => window.id !== windowId));
+    setOpenHoursError(null);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       alert('请输入长椅名称');
       return;
@@ -125,8 +151,20 @@ export default function AddEditPage() {
       return;
     }
 
+    // 可坐时段校验：重叠或非法时段不能保存
+    const windowError = validateWindows(openHours);
+    if (windowError) {
+      setOpenHoursError(windowError);
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      openHours,
+    };
+
     if (isEdit && id) {
-      updateBench(id, formData);
+      updateBench(id, payload);
       experiences.forEach((exp) => {
         const existingExp = existingBench?.experiences.find((e) => e.id === exp.id);
         if (existingExp) {
@@ -136,9 +174,7 @@ export default function AddEditPage() {
         }
       });
     } else {
-      addBench({
-        ...formData,
-      });
+      addBench(payload);
     }
 
     navigate(-1);
@@ -385,6 +421,79 @@ export default function AddEditPage() {
           <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-serif text-lg font-semibold text-deep-brown">
+                可坐时段
+              </h2>
+              <button
+                type="button"
+                onClick={handleAddWindow}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-moss-green hover:bg-moss-green/10 rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                添加时段
+              </button>
+            </div>
+
+            <p className="text-xs text-ink-light mb-4">
+              不添加时段表示全天开放；支持跨午夜时段，例如 22:00–02:00。时段之间不能重叠。
+            </p>
+
+            {openHours.length > 0 && (
+              <div className="space-y-3 mb-2">
+                {openHours.map((window) => (
+                  <div
+                    key={window.id}
+                    className="flex items-center gap-3 p-3 bg-warm-cream/50 rounded-lg"
+                  >
+                    <Clock className="w-4 h-4 text-ochre flex-shrink-0" />
+                    <input
+                      type="time"
+                      value={window.start}
+                      onChange={(e) => handleUpdateWindow(window.id, 'start', e.target.value)}
+                      className="px-2 py-1.5 text-sm bg-white border border-deep-brown/10 rounded-md text-deep-brown"
+                    />
+                    <span className="text-sm text-ink-light">至</span>
+                    <input
+                      type="time"
+                      value={window.end}
+                      onChange={(e) => handleUpdateWindow(window.id, 'end', e.target.value)}
+                      className="px-2 py-1.5 text-sm bg-white border border-deep-brown/10 rounded-md text-deep-brown"
+                    />
+                    {window.end && window.start && window.end <= window.start && (
+                      <span className="text-xs text-ink-light">（次日）</span>
+                    )}
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteWindow(window.id)}
+                      className="p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {openHoursError && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{openHoursError}</span>
+              </div>
+            )}
+
+            {openHours.length === 0 && !openHoursError && (
+              <div className="text-center py-6">
+                <p className="text-sm text-ink-light">全天开放</p>
+                <p className="text-xs text-ink-light/60 mt-1">
+                  如果长椅所在场所有闭园时间，可以添加可坐时段
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-serif text-lg font-semibold text-deep-brown">
                 分时段体验
               </h2>
               <button
@@ -399,7 +508,7 @@ export default function AddEditPage() {
 
             {experiences.length > 0 ? (
               <div className="space-y-4">
-                {experiences.map((exp, index) => {
+                {experiences.map((exp) => {
                   const TimeIcon = timePeriodIcons[exp.timePeriod];
                   return (
                     <div

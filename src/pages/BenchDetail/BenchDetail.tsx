@@ -14,6 +14,8 @@ import {
   Sunset,
   Moon,
   CloudSun,
+  CircleCheck,
+  CircleSlash,
 } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import {
@@ -27,12 +29,15 @@ import {
 import type { TimePeriodType } from '@/types';
 import Rating from '@/components/Rating/Rating';
 import { calculateComfortScore, getComfortLevel, getComfortColor } from '@/utils/comfort';
+import { getOpenStatus, formatWindow, formatNextOpen, formatTime } from '@/utils/openHours';
+import { useNow } from '@/hooks/useNow';
 
 export default function BenchDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getBenchById, deleteBench, initialize, initialized } = useBenchStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const now = useNow();
 
   useEffect(() => {
     if (!initialized) {
@@ -61,6 +66,7 @@ export default function BenchDetail() {
   const comfortScore = calculateComfortScore(bench);
   const comfortLevel = getComfortLevel(comfortScore);
   const comfortColor = getComfortColor(comfortScore);
+  const openStatus = getOpenStatus(bench, now);
 
   const timePeriodIcons: Record<TimePeriodType, typeof Sunrise> = {
     morning: Sunrise,
@@ -121,6 +127,44 @@ export default function BenchDetail() {
                   </div>
                   <div className="text-sm text-ink-light">{comfortLevel}</div>
                 </div>
+              </div>
+
+              <div
+                className={`flex items-center gap-3 p-3 rounded-lg mb-6 ${
+                  openStatus.isOpen
+                    ? 'bg-moss-green/10 text-moss-green'
+                    : 'bg-ink-light/10 text-ink-light'
+                }`}
+              >
+                {openStatus.isOpen ? (
+                  <CircleCheck className="w-5 h-5 flex-shrink-0" />
+                ) : (
+                  <CircleSlash className="w-5 h-5 flex-shrink-0" />
+                )}
+                <div className="flex-1 text-sm">
+                  {openStatus.isOpen ? (
+                    <>
+                      <span className="font-medium">
+                        {openStatus.isAllDay ? '全天开放' : '当前开放中'}
+                      </span>
+                      {openStatus.closesAt && (
+                        <span className="text-ink-light ml-2">
+                          开放至 {formatTime(openStatus.closesAt)}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">当前已关闭</span>
+                      {openStatus.nextOpen && (
+                        <span className="text-ink-light ml-2">
+                          下一次开放：{formatNextOpen(openStatus.nextOpen, now)}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+                <Clock className="w-4 h-4 flex-shrink-0 opacity-60" />
               </div>
 
               <div className="h-2 bg-warm-beige rounded-full mb-6 overflow-hidden">
@@ -216,6 +260,33 @@ export default function BenchDetail() {
         <div className="space-y-6">
           <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-2">
             <h2 className="font-serif text-lg font-semibold text-deep-brown mb-4">
+              可坐时段
+            </h2>
+
+            {bench.openHours && bench.openHours.length > 0 ? (
+              <div className="space-y-2">
+                {bench.openHours.map((window) => (
+                  <div
+                    key={window.id}
+                    className="flex items-center gap-2 p-3 bg-warm-cream/50 rounded-lg"
+                  >
+                    <Clock className="w-4 h-4 text-ochre flex-shrink-0" />
+                    <span className="text-sm text-deep-brown">
+                      {formatWindow(window)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-moss-green/5 rounded-lg">
+                <CircleCheck className="w-4 h-4 text-moss-green flex-shrink-0" />
+                <span className="text-sm text-deep-brown">全天开放，随时可去</span>
+              </div>
+            )}
+          </div>
+
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-3">
+            <h2 className="font-serif text-lg font-semibold text-deep-brown mb-4">
               分时段体验
             </h2>
 
@@ -259,7 +330,7 @@ export default function BenchDetail() {
             )}
           </div>
 
-          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-3">
+          <div className="paper-texture rounded-xl shadow-paper p-6 fade-in opacity-0 stagger-4">
             <h3 className="font-serif text-sm font-semibold text-deep-brown mb-3">
               档案信息
             </h3>
@@ -274,6 +345,14 @@ export default function BenchDetail() {
                 <span className="text-ink-light">更新时间</span>
                 <span className="text-deep-brown">
                   {new Date(bench.updatedAt).toLocaleDateString('zh-CN')}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-light">可坐时段</span>
+                <span className="text-deep-brown">
+                  {bench.openHours && bench.openHours.length > 0
+                    ? `${bench.openHours.length} 段`
+                    : '全天开放'}
                 </span>
               </div>
               <div className="flex justify-between">

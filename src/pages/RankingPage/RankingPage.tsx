@@ -1,14 +1,16 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, MapPin, Star, Crown, Medal, Award } from 'lucide-react';
+import { Trophy, MapPin, Star, Crown, Medal, Award, Clock } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import { calculateComfortScore, getComfortLevel, getComfortColor } from '@/utils/comfort';
+import { getOpenStatus, formatNextOpen } from '@/utils/openHours';
+import { useNow } from '@/hooks/useNow';
 import { MATERIAL_LABELS, SHADE_LABELS } from '@/types';
-import type { Bench } from '@/types';
 
 export default function RankingPage() {
   const { benches, initialize, initialized } = useBenchStore();
   const navigate = useNavigate();
+  const now = useNow();
 
   useEffect(() => {
     if (!initialized) {
@@ -16,8 +18,14 @@ export default function RankingPage() {
     }
   }, [initialized, initialize]);
 
+  // 当前开放的长椅排在前面，关闭的沉底；各自按舒适度排序
   const rankedBenches = [...benches]
-    .sort((a, b) => calculateComfortScore(b) - calculateComfortScore(a))
+    .sort((a, b) => {
+      const aOpen = getOpenStatus(a, now).isOpen ? 1 : 0;
+      const bOpen = getOpenStatus(b, now).isOpen ? 1 : 0;
+      if (aOpen !== bOpen) return bOpen - aOpen;
+      return calculateComfortScore(b) - calculateComfortScore(a);
+    })
     .map((bench, index) => ({ bench, rank: index + 1 }));
 
   const getRankIcon = (rank: number) => {
@@ -41,7 +49,7 @@ export default function RankingPage() {
           舒适度排行
         </h2>
         <p className="text-ink-light text-sm">
-          综合评分最高的长椅
+          当前开放的长椅优先上榜，关闭的排在后面
         </p>
       </div>
 
@@ -50,6 +58,7 @@ export default function RankingPage() {
           const comfortScore = calculateComfortScore(bench);
           const comfortLevel = getComfortLevel(comfortScore);
           const comfortColor = getComfortColor(comfortScore);
+          const openStatus = getOpenStatus(bench, now);
 
           return (
             <div
@@ -57,7 +66,9 @@ export default function RankingPage() {
               onClick={() => navigate(`/bench/${bench.id}`)}
               className={`paper-texture rounded-xl shadow-paper p-4 border ${
                 getRankBg(rank)
-              } cursor-pointer card-hover fade-in opacity-0 stagger-${Math.min(rank, 6)}`}
+              } cursor-pointer card-hover fade-in opacity-0 stagger-${Math.min(rank, 6)} ${
+                openStatus.isOpen ? '' : 'grayscale-[0.4] opacity-70'
+              }`}
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-warm-beige flex items-center justify-center flex-shrink-0">
@@ -71,6 +82,13 @@ export default function RankingPage() {
                     </h3>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${comfortColor} bg-white/80`}>
                       {comfortLevel}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      openStatus.isOpen
+                        ? 'bg-moss-green/10 text-moss-green'
+                        : 'bg-ink-light/10 text-ink-light'
+                    }`}>
+                      {openStatus.isOpen ? '开放中' : '已关闭'}
                     </span>
                   </div>
 
@@ -90,6 +108,12 @@ export default function RankingPage() {
                       <Star className="w-3 h-3 fill-ochre text-ochre" />
                       <span>{bench.rating.toFixed(1)}</span>
                     </div>
+                    {!openStatus.isOpen && openStatus.nextOpen && (
+                      <div className="flex items-center gap-1 text-xs text-ink-light px-2 py-0.5 bg-white/60 rounded">
+                        <Clock className="w-3 h-3" />
+                        <span>{formatNextOpen(openStatus.nextOpen, now)}开放</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

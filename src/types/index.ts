@@ -13,6 +13,16 @@ export interface BenchExperience {
   rating: number;
 }
 
+/**
+ * 可坐时段，时间为 "HH:MM" 格式（24 小时制）。
+ * 支持跨午夜，例如 { start: '22:00', end: '02:00' } 表示晚 10 点到次日凌晨 2 点。
+ */
+export interface OpenTimeWindow {
+  id: string;
+  start: string;
+  end: string;
+}
+
 export interface Bench {
   id: string;
   name: string;
@@ -28,6 +38,11 @@ export interface Bench {
   rating: number;
   review: string;
   experiences: BenchExperience[];
+  /**
+   * 可坐时段列表。未登记（undefined）或为空数组时视为全天开放。
+   * 旧档案没有该字段，按全天开放处理。
+   */
+  openHours?: OpenTimeWindow[];
   createdAt: string;
   updatedAt: string;
 }

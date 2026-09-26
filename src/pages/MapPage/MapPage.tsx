@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin, Armchair, Info } from 'lucide-react';
 import { useBenchStore } from '@/store/useBenchStore';
 import { calculateComfortScore, getComfortColor } from '@/utils/comfort';
+import { getOpenStatus } from '@/utils/openHours';
+import { useNow } from '@/hooks/useNow';
 import type { Bench } from '@/types';
 
 export default function MapPage() {
   const { benches, initialize, initialized } = useBenchStore();
   const navigate = useNavigate();
   const [hoveredBench, setHoveredBench] = useState<Bench | null>(null);
+  const now = useNow();
 
   useEffect(() => {
     if (!initialized) {
@@ -60,8 +63,11 @@ export default function MapPage() {
           {benches.map((bench) => {
             const position = getPositionStyle(bench);
             const comfortScore = calculateComfortScore(bench);
-            const colorClass = getComfortColor(comfortScore);
-            
+            const openStatus = getOpenStatus(bench, now);
+            const colorClass = openStatus.isOpen
+              ? getComfortColor(comfortScore)
+              : 'text-ink-light/50';
+
             return (
               <button
                 key={bench.id}
@@ -74,8 +80,13 @@ export default function MapPage() {
                 <div className={`relative ${
                   hoveredBench?.id === bench.id ? 'scale-125 z-10' : 'z-0'
                 } transition-transform duration-200`}>
+                  {openStatus.isOpen && (
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-moss-green/30 animate-ping" />
+                  )}
                   <MapPin
-                    className={`w-8 h-8 ${colorClass} drop-shadow-md group-hover:drop-shadow-lg transition-all`}
+                    className={`relative w-8 h-8 ${colorClass} drop-shadow-md group-hover:drop-shadow-lg transition-all ${
+                      openStatus.isOpen ? '' : 'scale-75 opacity-70'
+                    }`}
                     fill="currentColor"
                   />
                   <div className="absolute top-1 left-1/2 -translate-x-1/2">
@@ -91,10 +102,22 @@ export default function MapPage() {
                     <p className="text-xs text-ink-light line-clamp-1 mb-2">
                       {bench.location}
                     </p>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-ink-light">舒适度</span>
-                      <span className={`text-sm font-medium ${colorClass}`}>
+                      <span className={`text-sm font-medium ${getComfortColor(comfortScore)}`}>
                         {comfortScore}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-ink-light">状态</span>
+                      <span className={`text-xs font-medium ${
+                        openStatus.isOpen ? 'text-moss-green' : 'text-ink-light'
+                      }`}>
+                        {openStatus.isOpen
+                          ? openStatus.isAllDay
+                            ? '开放中 · 全天'
+                            : '开放中'
+                          : '已关闭'}
                       </span>
                     </div>
                   </div>
@@ -115,15 +138,19 @@ export default function MapPage() {
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-moss-green" fill="currentColor" />
-                <span className="text-xs text-ink-light">极佳/优秀</span>
+                <span className="text-xs text-ink-light">开放中 · 极佳/优秀</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-ochre" fill="currentColor" />
-                <span className="text-xs text-ink-light">良好</span>
+                <span className="text-xs text-ink-light">开放中 · 良好</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-ink-light" fill="currentColor" />
-                <span className="text-xs text-ink-light">一般/较差</span>
+                <span className="text-xs text-ink-light">开放中 · 一般/较差</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-ink-light/50" fill="currentColor" />
+                <span className="text-xs text-ink-light">当前已关闭</span>
               </div>
             </div>
           </div>
@@ -132,7 +159,8 @@ export default function MapPage() {
 
       <div className="mt-4 text-center">
         <p className="text-sm text-ink-light">
-          共 <span className="font-medium text-deep-brown">{benches.length}</span> 张长椅
+          共 <span className="font-medium text-deep-brown">{benches.length}</span> 张长椅，
+          当前开放 <span className="font-medium text-moss-green">{benches.filter((b) => getOpenStatus(b, now).isOpen).length}</span> 张
         </p>
       </div>
     </div>
